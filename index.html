@@ -223,6 +223,7 @@ let currentPersonalMessage='';
 async function savePersonalMessage(){const el=document.getElementById('personalMessageInput'),v=(el?.value||'').trim();const {error}=await sb.from('profiles').update({personal_message:v}).eq('id',currentUser.id);if(error){alert('No se pudo guardar el mensaje personal.');return}currentPersonalMessage=v;const b=document.getElementById('personalSaveBtn');if(b){b.textContent='✓ Guardado';setTimeout(()=>b.textContent='Guardar',1400)}await renderFriendsList()}
 function toggleFriendGroup(id,btn){const el=document.getElementById(id);if(!el)return;const hidden=el.style.display==='none';el.style.display=hidden?'grid':'none';btn.querySelector('span').textContent=hidden?'▼':'▶'}
 async function openSocialHub(tab='messages'){
+  rememberView(tab);
  if(!currentUser){openAuth('login');return}
  document.getElementById('modal').classList.add('show');document.querySelector('.modal-card').classList.add('social-wide');
  const box=document.getElementById('modalContent');box.innerHTML='<div class="empty-results">Cargando…</div>';
@@ -281,11 +282,13 @@ function openAuth(mode){
   document.getElementById('modalContent').innerHTML=`
     <div class="modal-top"><div><h2 style="margin:0">${isLogin?'Bienvenido de nuevo':'Crea tu perfil LocalTrip'}</h2><p style="color:var(--muted);margin:6px 0 0">${isLogin?'Accede a tu cuenta de LocalTrip.':'Empieza como viajero, local o ambas cosas.'}</p></div><button class="close" onclick="closeModal()">×</button></div>
     ${isLogin ? `
-      <div style="margin-top:22px" class="auth-grid">
-        <div class="auth-field full"><label>Email</label><input id="authEmail" type="email" placeholder="tu@email.com"></div>
-        <div class="auth-field full"><label>Contraseña</label><input id="authPass" type="password" placeholder="••••••••"></div>
-      </div>
-      <button class="primary" style="width:100%;margin-top:18px" onclick="loginDemo()">Iniciar sesión</button>
+      <form id="authLoginForm" style="margin-top:22px" onsubmit="loginDemo(event)">
+        <div class="auth-grid">
+          <div class="auth-field full"><label>Email</label><input id="authEmail" name="email" type="email" autocomplete="username" placeholder="tu@email.com" required></div>
+          <div class="auth-field full"><label>Contraseña</label><input id="authPass" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required></div>
+        </div>
+        <button class="primary" type="submit" style="width:100%;margin-top:18px">Iniciar sesión</button>
+      </form>
       <p style="text-align:center;color:var(--muted);font-size:13px">¿No tienes cuenta? <button class="back" style="display:inline;margin:0" onclick="openAuth('register')">Crear perfil</button></p>
     ` : `
       <div style="margin-top:20px">
@@ -331,9 +334,12 @@ async function createProfile(){
 }
 
 async function loginReal(email,pass){return await sb.auth.signInWithPassword({email,password:pass})}
-async function loginDemo(){
-  const email=document.getElementById('authEmail').value.trim();
-  const pass=document.getElementById('authPass').value;
+async function loginDemo(e){
+  if(e)e.preventDefault();
+  const form=document.getElementById('authLoginForm');
+  const fd=form?new FormData(form):null;
+  const email=String(fd?.get('email')||document.getElementById('authEmail')?.value||'').trim();
+  const pass=String(fd?.get('password')||document.getElementById('authPass')?.value||'');
   if(!email||!pass){alert('Escribe tu email y contraseña.');return}
   if(!sb){alert('No se ha podido conectar con LocalTrip.');return}
   const {data,error}=await loginReal(email,pass);
@@ -380,13 +386,27 @@ async function updateNav(){
 }
 
 
+const VIEW_KEY='localtrip:lastView';
+function rememberView(view){try{localStorage.setItem(VIEW_KEY,view)}catch(e){}}
+async function restoreLastView(){
+  let view='home';try{view=localStorage.getItem(VIEW_KEY)||'home'}catch(e){}
+  if(view==='friends')return openSocialHub('friends');
+  if(view==='messages')return openSocialHub('messages');
+  if(view==='requests')return openSocialHub('requests');
+  if(view==='memories')return openMemories();
+  if(view==='ranking')return openRanking();
+  if(view==='home')return openHome();
+}
+
 async function openHome(){
+ rememberView('home');
  if(!currentUser){openAuth('login');return}document.getElementById('modal').classList.add('show');document.querySelector('.modal-card').classList.add('social-wide');
  const [{count:req},{data:friends},{data:mems}]=await Promise.all([sb.from('friend_requests').select('*',{count:'exact',head:true}).eq('receiver_id',currentUser.id).eq('status','pending'),sb.from('friendships').select('user1,user2').or(`user1.eq.${currentUser.id},user2.eq.${currentUser.id}`),sb.from('travel_memories').select('id').eq('user_id',currentUser.id)]);
  const friendIds=(friends||[]).map(f=>f.user1===currentUser.id?f.user2:f.user1), pres=await getPresenceMap(friendIds), online=friendIds.filter(id=>effectiveStatus(pres[id])!=='offline').length;
  document.getElementById('modalContent').innerHTML=`<div class="social-hero"><div><div style="font-weight:900;opacity:.8">TU LOCALTRIP</div><h2>¿Qué está pasando hoy?</h2><p>Amigos, viajes, recuerdos y la competición del mes en un mismo lugar.</p></div><button class="close" onclick="closeModal()">×</button></div><div class="dashboard-grid"><div class="dash-card" onclick="openSocialHub('friends')">👥<b>${online} amigos conectados</b><small>Abre tu lista estilo Messenger y mira sus mensajes personales.</small></div><div class="dash-card" onclick="openSocialHub('messages')">💬<b>Mensajes</b><small>Continúa tus conversaciones con viajeros y locales.</small></div><div class="dash-card" onclick="openSocialHub('requests')">🔔<b>${req||0} peticiones</b><small>Acepta o rechaza nuevas amistades.</small></div><div class="dash-card" onclick="openMemories()">📸<b>${(mems||[]).length} recuerdos tuyos</b><small>Comparte una foto y una historia de un lugar.</small></div><div class="dash-card" onclick="openRanking()">🏆<b>Viajero del mes</b><small>Mira la clasificación pública y vota tus recuerdos favoritos.</small></div><div class="dash-card" onclick="document.getElementById('mi-perfil').scrollIntoView({behavior:'smooth'});closeModal()">🌍<b>Mi perfil viajero</b><small>Actualiza ciudad, intereses y tu historia.</small></div></div>`;
 }
 async function openMemories(){
+ rememberView('memories');
  document.getElementById('modal').classList.add('show');document.querySelector('.modal-card').classList.add('social-wide');const box=document.getElementById('modalContent');box.innerHTML='<div class="empty-results">Cargando recuerdos…</div>';
  const {data:memories,error}=await sb.from('travel_memories').select('id,user_id,title,story,location,photo_url,created_at').order('created_at',{ascending:false}).limit(60);if(error){box.innerHTML='<div class="empty-results">No se pudieron cargar los recuerdos.</div>';return}
  const ids=[...new Set((memories||[]).map(m=>m.user_id))],profiles=await getProfilesMap(ids);const {data:votes}=await sb.from('memory_votes').select('memory_id,voter_id');const counts={};(votes||[]).forEach(v=>counts[v.memory_id]=(counts[v.memory_id]||0)+1);
@@ -401,9 +421,11 @@ async function publishMemory(){
 }
 async function toggleMemoryVote(id){if(!currentUser){openAuth('login');return}const {error}=await sb.rpc('toggle_memory_vote',{p_memory_id:id});if(error){alert(error.message);return}await openMemories()}
 async function openRanking(){
+ rememberView('ranking');
  document.getElementById('modal').classList.add('show');document.querySelector('.modal-card').classList.add('social-wide');const box=document.getElementById('modalContent');box.innerHTML='<div class="empty-results">Calculando clasificación…</div>';const start=new Date();start.setDate(1);start.setHours(0,0,0,0);const {data:mem}=await sb.from('travel_memories').select('id,user_id').gte('created_at',start.toISOString()),mids=(mem||[]).map(x=>x.id);let votes=[];if(mids.length){const r=await sb.from('memory_votes').select('memory_id').in('memory_id',mids);votes=r.data||[]}const scores={};(mem||[]).forEach(m=>scores[m.user_id]=scores[m.user_id]||0);votes.forEach(v=>{const m=(mem||[]).find(x=>x.id===v.memory_id);if(m)scores[m.user_id]=(scores[m.user_id]||0)+1});const ids=Object.keys(scores),profiles=await getProfilesMap(ids),rows=ids.map(id=>({id,p:profiles[id]||{id,name:'Viajero'},votes:scores[id]})).sort((a,b)=>b.votes-a.votes);const medals=['🥇','🥈','🥉'];box.innerHTML=`<div class="social-hero"><div><h2>🏆 Viajeros del mes</h2><p>La competición pública de LocalTrip. Cada voto cuenta para el ranking mensual.</p></div><button class="close" onclick="closeModal()">×</button></div>${rows[0]?`<div class="winner-banner"><b>🔥 Lidera este mes: ${escapeHtml(rows[0].p.name||'Viajero')}</b><div>${rows[0].votes} votos recibidos en sus recuerdos de este mes.</div></div>`:''}<div class="rank-list">${rows.length?rows.map((x,i)=>`<div class="rank-row"><div class="rank-pos">${medals[i]||'#'+(i+1)}</div><img src="${avatarFor(x.p)}"><div><strong>${escapeHtml(x.p.name||'Viajero')}</strong><small style="display:block;color:var(--muted)">📍 ${escapeHtml(x.p.city||'Comunidad LocalTrip')}</small></div><b class="vote-total">${x.votes} votos</b></div>`).join(''):'<div class="empty-results">Todavía no hay participantes este mes.</div>'}</div><div style="margin-top:16px"><button class="primary" onclick="openMemories()">📸 Ver recuerdos y votar</button></div>`;
 }
 async function logout(){
+  try{localStorage.removeItem(VIEW_KEY)}catch(e){}
   if(currentUser&&sb){try{await sb.from('user_presence').update({status:'offline',last_seen:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('user_id',currentUser.id)}catch(e){} await sb.auth.signOut();}
   clearInterval(heartbeatTimer);if(presenceChannel)await sb.removeChannel(presenceChannel);if(messageChannel)await sb.removeChannel(messageChannel);currentUser=null;
   await renderProfileStatus();
@@ -416,7 +438,7 @@ async function initSupabase(){
   currentUser=session?.user||null;
   await renderProfileStatus();
   await updateNav();
-  if(currentUser){await ensurePresence();const {data:pr}=await sb.from('user_presence').select('status').eq('user_id',currentUser.id).maybeSingle();startHeartbeat(pr?.status||'offline');await subscribeSocialRealtime()}
+  if(currentUser){await ensurePresence();const {data:pr}=await sb.from('user_presence').select('status').eq('user_id',currentUser.id).maybeSingle();startHeartbeat(pr?.status||'offline');await subscribeSocialRealtime();await restoreLastView()}
   sb.auth.onAuthStateChange((_event,session)=>{
     currentUser=session?.user||null;
     setTimeout(async()=>{await renderProfileStatus();await updateNav();if(currentUser){await ensurePresence();await subscribeSocialRealtime()}},0);
