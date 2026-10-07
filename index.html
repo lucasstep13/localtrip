@@ -1034,5 +1034,55 @@ loginDemo=async function(){
 })();
 </script>
 
+
+<script id="social14-1-enter-fix">
+(function(){
+  function wireEnter(){
+    const email=document.querySelector('input[type="email"]');
+    const pass=document.querySelector('input[type="password"]');
+    if(!email||!pass) return;
+
+    // Quita la marca de la capa anterior y añade un listener inequívoco:
+    // Enter en contraseña ejecuta exactamente el mismo click que el botón visible.
+    if(pass.dataset.lt141Enter) return;
+    pass.dataset.lt141Enter='1';
+
+    pass.addEventListener('keydown',function(e){
+      if(e.key!=='Enter') return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      const remember=document.getElementById('lt14Remember');
+      if(remember?.checked){
+        localStorage.setItem('lt_remember_login','1');
+        localStorage.setItem('lt_login_email',email.value.trim());
+      }else{
+        localStorage.removeItem('lt_remember_login');
+        localStorage.removeItem('lt_login_email');
+      }
+
+      // Preferimos el botón real del formulario/modal visible.
+      const scope=pass.closest('form') || pass.closest('.modal-card') || pass.parentElement?.parentElement || document;
+      let btn=[...scope.querySelectorAll('button')].find(b =>
+        /iniciar sesi[oó]n|entrar/i.test((b.textContent||'').trim()) &&
+        b.offsetParent!==null
+      );
+      if(!btn){
+        btn=[...document.querySelectorAll('button')].find(b =>
+          /iniciar sesi[oó]n|entrar/i.test((b.textContent||'').trim()) &&
+          b.offsetParent!==null
+        );
+      }
+      if(btn) btn.click();
+      else if(typeof loginDemo==='function') loginDemo();
+    },true);
+  }
+
+  new MutationObserver(wireEnter).observe(document.documentElement,{subtree:true,childList:true,attributes:true});
+  document.addEventListener('click',()=>setTimeout(wireEnter,25),true);
+  setTimeout(wireEnter,250);
+})();
+</script>
+
 </body>
 </html>
