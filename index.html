@@ -437,8 +437,8 @@ function openAuth(mode){
     <div class="modal-top"><div><h2 style="margin:0">${isLogin?'Bienvenido de nuevo':'Crea tu perfil LocalTrip'}</h2><p style="color:var(--muted);margin:6px 0 0">${isLogin?'Accede a tu cuenta de LocalTrip.':'Empieza como viajero, local o ambas cosas.'}</p></div><button class="close" onclick="closeModal()">×</button></div>
     ${isLogin ? `
       <div style="margin-top:22px" class="auth-grid">
-        <div class="auth-field full"><label>Email</label><input id="authEmail" type="email" placeholder="tu@email.com"></div>
-        <div class="auth-field full"><label>Contraseña</label><input id="authPass" type="password" placeholder="••••••••"></div><div class="auth-field full"><label>Entrar como</label><div class="login-presence"><label><input type="radio" name="loginPresence" value="online" checked><span class="lp-dot lp-online"></span>En línea</label><label><input type="radio" name="loginPresence" value="busy"><span class="lp-dot lp-busy"></span>Ocupado</label><label><input type="radio" name="loginPresence" value="offline"><span class="lp-dot lp-offline"></span>Desconectado</label></div></div>
+        <div class="auth-field full"><label>Email</label><input id="authEmail" name="email" type="email" autocomplete="username" placeholder="tu@email.com"></div>
+        <div class="auth-field full"><label>Contraseña</label><input id="authPass" name="password" type="password" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key===\'Enter\'){event.preventDefault();loginDemo()}"></div><div class="auth-field full"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input id="rememberEmail" type="checkbox" style="width:auto"> Recordar mi email en este dispositivo</label><small style="color:var(--muted)">Chrome puede preguntarte aparte si quieres guardar la contraseña.</small></div><div class="auth-field full"><label>Entrar como</label><div class="login-presence"><label><input type="radio" name="loginPresence" value="online" checked><span class="lp-dot lp-online"></span>En línea</label><label><input type="radio" name="loginPresence" value="busy"><span class="lp-dot lp-busy"></span>Ocupado</label><label><input type="radio" name="loginPresence" value="offline"><span class="lp-dot lp-offline"></span>Desconectado</label></div></div>
       </div>
       <button class="primary" style="width:100%;margin-top:18px" onclick="loginDemo()">Iniciar sesión</button>
       <p style="text-align:center;color:var(--muted);font-size:13px">¿No tienes cuenta? <button class="back" style="display:inline;margin:0" onclick="openAuth('register')">Crear perfil</button></p>
@@ -457,6 +457,14 @@ function openAuth(mode){
       </div>`}
   `;
   document.getElementById('modal').classList.add('show');
+  if(isLogin){
+    const saved=localStorage.getItem('lt_login_email')||'';
+    const remember=localStorage.getItem('lt_remember_login')==='1';
+    const em=document.getElementById('authEmail'), cb=document.getElementById('rememberEmail');
+    if(em && remember) em.value=saved;
+    if(cb) cb.checked=remember;
+    setTimeout(()=>{ if(em && !em.value) em.focus(); else document.getElementById('authPass')?.focus(); },0);
+  }
 }
 let selectedRole='both';
 function selectRole(role){selectedRole=role;document.getElementById('roleBoth').classList.toggle('selected',role==='both');document.getElementById('roleTraveler').classList.toggle('selected',role==='traveler')}
@@ -489,6 +497,9 @@ async function loginReal(email,pass){return await sb.auth.signInWithPassword({em
 async function loginDemo(){
   const email=document.getElementById('authEmail').value.trim();
   const pass=document.getElementById('authPass').value;
+  const remember=document.getElementById('rememberEmail')?.checked;
+  if(remember){localStorage.setItem('lt_remember_login','1');localStorage.setItem('lt_login_email',email)}
+  else{localStorage.removeItem('lt_remember_login');localStorage.removeItem('lt_login_email')}
   if(!email||!pass){alert('Escribe tu email y contraseña.');return}
   if(!sb){alert('No se ha podido conectar con LocalTrip.');return}
   const {data,error}=await loginReal(email,pass);
@@ -928,160 +939,6 @@ loginDemo=async function(){
  await lt13Login();
  if(currentUser){localStorage.setItem('lt_last_section','profile');sessionStorage.setItem('lt_last_section','profile');await openMyProfile()}
 };
-</script>
-
-
-<style id="social14-login-style">
-.lt14-remember{display:flex;align-items:center;gap:8px;margin:10px 0 4px;font-size:13px;color:#526975;cursor:pointer}
-.lt14-remember input{width:16px;height:16px;accent-color:#0aa394}
-.lt14-login-note{font-size:11px;color:#81939c;margin-top:5px}
-</style>
-<script id="social14-login-script">
-(function(){
-  const LT_EMAIL='lt_login_email';
-  const LT_REMEMBER='lt_remember_login';
-
-  function lt14EnhanceLogin(){
-    const modal=document.querySelector('.auth-modal:not([style*="display: none"]), .modal-card');
-    const email=document.querySelector('input[type="email"]');
-    const pass=document.querySelector('input[type="password"]');
-    if(!email||!pass) return;
-
-    // El navegador/gestor de contraseñas decide si guarda la contraseña.
-    email.setAttribute('autocomplete','username');
-    pass.setAttribute('autocomplete','current-password');
-    email.setAttribute('name','email');
-    pass.setAttribute('name','password');
-
-    if(localStorage.getItem(LT_REMEMBER)==='1'){
-      const saved=localStorage.getItem(LT_EMAIL);
-      if(saved && !email.value) email.value=saved;
-    }
-
-    if(!document.getElementById('lt14Remember')){
-      const label=document.createElement('label');
-      label.className='lt14-remember';
-      label.innerHTML='<input id="lt14Remember" type="checkbox"> Recordar mi email en este dispositivo';
-      const checked=localStorage.getItem(LT_REMEMBER)==='1';
-      label.querySelector('input').checked=checked;
-      pass.insertAdjacentElement('afterend',label);
-      label.insertAdjacentHTML('afterend','<div class="lt14-login-note">La contraseña puede guardarla Chrome si tú aceptas. LocalTrip no la guarda.</div>');
-    }
-
-    const remember=document.getElementById('lt14Remember');
-    const saveChoice=()=>{
-      if(remember?.checked){
-        localStorage.setItem(LT_REMEMBER,'1');
-        localStorage.setItem(LT_EMAIL,email.value.trim());
-      }else{
-        localStorage.removeItem(LT_REMEMBER);
-        localStorage.removeItem(LT_EMAIL);
-      }
-    };
-
-    // Enter desde email o contraseña equivale a pulsar Iniciar sesión.
-    [email,pass].forEach(el=>{
-      if(el.dataset.lt14Enter) return;
-      el.dataset.lt14Enter='1';
-      el.addEventListener('keydown',function(e){
-        if(e.key==='Enter'){
-          e.preventDefault();
-          saveChoice();
-          const btn=[...document.querySelectorAll('button')].find(b=>/iniciar sesi[oó]n/i.test(b.textContent||'') && b.offsetParent!==null);
-          if(btn) btn.click();
-        }
-      });
-    });
-
-    const btn=[...document.querySelectorAll('button')].find(b=>/iniciar sesi[oó]n/i.test(b.textContent||'') && b.offsetParent!==null);
-    if(btn && !btn.dataset.lt14Remember){
-      btn.dataset.lt14Remember='1';
-      btn.addEventListener('click',saveChoice,{capture:true});
-    }
-  }
-
-  // Observa aperturas del modal de login.
-  new MutationObserver(()=>lt14EnhanceLogin()).observe(document.documentElement,{subtree:true,childList:true,attributes:true});
-  document.addEventListener('click',()=>setTimeout(lt14EnhanceLogin,40),true);
-  setTimeout(lt14EnhanceLogin,300);
-
-  // CORRECCIÓN FUERTE: tras autenticación manual exitosa, perfil sí o sí.
-  // Interceptamos la llamada real de Supabase para distinguir login manual de recuperación de sesión.
-  function hookSupabaseLogin(){
-    if(!window.sb?.auth?.signInWithPassword || window.sb.auth.__lt14Hooked) return false;
-    const original=window.sb.auth.signInWithPassword.bind(window.sb.auth);
-    window.sb.auth.signInWithPassword=async function(credentials){
-      const result=await original(credentials);
-      if(!result?.error && result?.data?.user){
-        localStorage.setItem('lt_last_section','profile');
-        sessionStorage.setItem('lt_last_section','profile');
-        setTimeout(async()=>{
-          try{
-            currentUser=result.data.user;
-            localStorage.setItem('lt_last_section','profile');
-            sessionStorage.setItem('lt_last_section','profile');
-            if(typeof openMyProfile==='function') await openMyProfile();
-          }catch(e){console.error('SOCIAL14 profile redirect',e)}
-        },350);
-      }
-      return result;
-    };
-    window.sb.auth.__lt14Hooked=true;
-    return true;
-  }
-  let tries=0;
-  const timer=setInterval(()=>{tries++; if(hookSupabaseLogin()||tries>50) clearInterval(timer)},100);
-})();
-</script>
-
-
-<script id="social14-1-enter-fix">
-(function(){
-  function wireEnter(){
-    const email=document.querySelector('input[type="email"]');
-    const pass=document.querySelector('input[type="password"]');
-    if(!email||!pass) return;
-
-    // Quita la marca de la capa anterior y añade un listener inequívoco:
-    // Enter en contraseña ejecuta exactamente el mismo click que el botón visible.
-    if(pass.dataset.lt141Enter) return;
-    pass.dataset.lt141Enter='1';
-
-    pass.addEventListener('keydown',function(e){
-      if(e.key!=='Enter') return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-
-      const remember=document.getElementById('lt14Remember');
-      if(remember?.checked){
-        localStorage.setItem('lt_remember_login','1');
-        localStorage.setItem('lt_login_email',email.value.trim());
-      }else{
-        localStorage.removeItem('lt_remember_login');
-        localStorage.removeItem('lt_login_email');
-      }
-
-      // Preferimos el botón real del formulario/modal visible.
-      const scope=pass.closest('form') || pass.closest('.modal-card') || pass.parentElement?.parentElement || document;
-      let btn=[...scope.querySelectorAll('button')].find(b =>
-        /iniciar sesi[oó]n|entrar/i.test((b.textContent||'').trim()) &&
-        b.offsetParent!==null
-      );
-      if(!btn){
-        btn=[...document.querySelectorAll('button')].find(b =>
-          /iniciar sesi[oó]n|entrar/i.test((b.textContent||'').trim()) &&
-          b.offsetParent!==null
-        );
-      }
-      if(btn) btn.click();
-      else if(typeof loginDemo==='function') loginDemo();
-    },true);
-  }
-
-  new MutationObserver(wireEnter).observe(document.documentElement,{subtree:true,childList:true,attributes:true});
-  document.addEventListener('click',()=>setTimeout(wireEnter,25),true);
-  setTimeout(wireEnter,250);
-})();
 </script>
 
 </body>
