@@ -930,5 +930,109 @@ loginDemo=async function(){
 };
 </script>
 
+
+<style id="social14-login-style">
+.lt14-remember{display:flex;align-items:center;gap:8px;margin:10px 0 4px;font-size:13px;color:#526975;cursor:pointer}
+.lt14-remember input{width:16px;height:16px;accent-color:#0aa394}
+.lt14-login-note{font-size:11px;color:#81939c;margin-top:5px}
+</style>
+<script id="social14-login-script">
+(function(){
+  const LT_EMAIL='lt_login_email';
+  const LT_REMEMBER='lt_remember_login';
+
+  function lt14EnhanceLogin(){
+    const modal=document.querySelector('.auth-modal:not([style*="display: none"]), .modal-card');
+    const email=document.querySelector('input[type="email"]');
+    const pass=document.querySelector('input[type="password"]');
+    if(!email||!pass) return;
+
+    // El navegador/gestor de contraseñas decide si guarda la contraseña.
+    email.setAttribute('autocomplete','username');
+    pass.setAttribute('autocomplete','current-password');
+    email.setAttribute('name','email');
+    pass.setAttribute('name','password');
+
+    if(localStorage.getItem(LT_REMEMBER)==='1'){
+      const saved=localStorage.getItem(LT_EMAIL);
+      if(saved && !email.value) email.value=saved;
+    }
+
+    if(!document.getElementById('lt14Remember')){
+      const label=document.createElement('label');
+      label.className='lt14-remember';
+      label.innerHTML='<input id="lt14Remember" type="checkbox"> Recordar mi email en este dispositivo';
+      const checked=localStorage.getItem(LT_REMEMBER)==='1';
+      label.querySelector('input').checked=checked;
+      pass.insertAdjacentElement('afterend',label);
+      label.insertAdjacentHTML('afterend','<div class="lt14-login-note">La contraseña puede guardarla Chrome si tú aceptas. LocalTrip no la guarda.</div>');
+    }
+
+    const remember=document.getElementById('lt14Remember');
+    const saveChoice=()=>{
+      if(remember?.checked){
+        localStorage.setItem(LT_REMEMBER,'1');
+        localStorage.setItem(LT_EMAIL,email.value.trim());
+      }else{
+        localStorage.removeItem(LT_REMEMBER);
+        localStorage.removeItem(LT_EMAIL);
+      }
+    };
+
+    // Enter desde email o contraseña equivale a pulsar Iniciar sesión.
+    [email,pass].forEach(el=>{
+      if(el.dataset.lt14Enter) return;
+      el.dataset.lt14Enter='1';
+      el.addEventListener('keydown',function(e){
+        if(e.key==='Enter'){
+          e.preventDefault();
+          saveChoice();
+          const btn=[...document.querySelectorAll('button')].find(b=>/iniciar sesi[oó]n/i.test(b.textContent||'') && b.offsetParent!==null);
+          if(btn) btn.click();
+        }
+      });
+    });
+
+    const btn=[...document.querySelectorAll('button')].find(b=>/iniciar sesi[oó]n/i.test(b.textContent||'') && b.offsetParent!==null);
+    if(btn && !btn.dataset.lt14Remember){
+      btn.dataset.lt14Remember='1';
+      btn.addEventListener('click',saveChoice,{capture:true});
+    }
+  }
+
+  // Observa aperturas del modal de login.
+  new MutationObserver(()=>lt14EnhanceLogin()).observe(document.documentElement,{subtree:true,childList:true,attributes:true});
+  document.addEventListener('click',()=>setTimeout(lt14EnhanceLogin,40),true);
+  setTimeout(lt14EnhanceLogin,300);
+
+  // CORRECCIÓN FUERTE: tras autenticación manual exitosa, perfil sí o sí.
+  // Interceptamos la llamada real de Supabase para distinguir login manual de recuperación de sesión.
+  function hookSupabaseLogin(){
+    if(!window.sb?.auth?.signInWithPassword || window.sb.auth.__lt14Hooked) return false;
+    const original=window.sb.auth.signInWithPassword.bind(window.sb.auth);
+    window.sb.auth.signInWithPassword=async function(credentials){
+      const result=await original(credentials);
+      if(!result?.error && result?.data?.user){
+        localStorage.setItem('lt_last_section','profile');
+        sessionStorage.setItem('lt_last_section','profile');
+        setTimeout(async()=>{
+          try{
+            currentUser=result.data.user;
+            localStorage.setItem('lt_last_section','profile');
+            sessionStorage.setItem('lt_last_section','profile');
+            if(typeof openMyProfile==='function') await openMyProfile();
+          }catch(e){console.error('SOCIAL14 profile redirect',e)}
+        },350);
+      }
+      return result;
+    };
+    window.sb.auth.__lt14Hooked=true;
+    return true;
+  }
+  let tries=0;
+  const timer=setInterval(()=>{tries++; if(hookSupabaseLogin()||tries>50) clearInterval(timer)},100);
+})();
+</script>
+
 </body>
 </html>
